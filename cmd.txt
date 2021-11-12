@@ -1,0 +1,1 @@
+ca65 src/game.asm -o dist/game.o && ld65 dist/game.o -t nes -o dist/game.nes
