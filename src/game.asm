@@ -34,7 +34,7 @@
   frames_passed: .res 1
   scroll_x: .res 1
   scroll_y: .res 1
-
+  falling: .res 1
 
 .segment "STARTUP"
 
@@ -50,15 +50,16 @@ reset:
   stx PPUMASK
   
   ; initialize zero-page values
-  lda #$80
+  lda #$7f
   sta player_x
   lda #$cf
   sta player_y
-  lda #$01
+  lda #$00
   sta player_direction
   lda #$00
   sta scroll_x
   sta scroll_y
+  sta falling
 
 ; wait for vblank
 :
@@ -144,14 +145,15 @@ reset:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 loop:
+  ;; Wait for next frame ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
   lda frames_passed
-  
-; each frame
 :
   cmp frames_passed
   beq :-
 
-  ; Render player
+  ;; Render player ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
   lda player_y
   sta $0200 ; Y-coord of first sprite
   lda #$06
@@ -161,46 +163,131 @@ loop:
   lda player_x
   sta $0203 ; X-coord of first sprite
 
-  ; Move player
+  ;; Read contoller input ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  lda player_direction
+  lda #$01
+  sta PAD1   ; start poll
+  lda #$00
+  sta PAD1   ; end poll
+
+check_a:
+  lda PAD1 ; a
+
+  ; check if on ground
+  ldx player_y
+  cpx #$cf
+
+  ; if your not finish jump
+  bne finish_jump  ; skip if jumping
+
+  AND #%00000001 ; See if a is pressed
+  beq skipped_controls ; skip if not press
+
+  ; if it is start jump
+  dec player_y
+  dec player_y
+
+finish_jump:
+  ; if falling continue fall
+  lda falling
   cmp #$01
-  beq move_right
-  jmp move_left
+  beq fall
 
-move_right:
-  inc player_x
+  ; otherwise keep jumping
+  lda player_y
+  cmp #$a1
+  beq fall
+  dec player_y
+  dec player_y
+  jmp skipped_controls
 
-  ; change direction if at edge
+fall:
+  lda #$01
+  sta falling
+  inc player_y
+  inc player_y
+  lda player_y
+  cmp #$cf
+  beq stop_fall
+  jmp skipped_controls
+
+stop_fall:
+  lda #$00
+  sta falling
+
+skipped_controls:
+  lda PAD1 ; b
+  lda PAD1 ; select
+  lda PAD1 ; start
+  lda PAD1 ; up
+  lda PAD1 ; down
+
+check_left:
+  lda PAD1 ; left
+  AND #%00000001 ; See if left is pressed
+  beq check_right  ; skip if not
   lda player_x
-  cmp #$e9
-  beq change_direction_left
-  jmp skip_direction
-
-  change_direction_left:
-    lda #$00
-    sta player_direction
-
-  skip_direction:
-    jmp continue
-
-move_left:
+  cmp #$0f ; see if at edge
+  beq check_right ; skip if so
+  dec player_x ; else move left
   dec player_x
 
-  ; change direction at edge
+check_right:
+  lda PAD1 ; right
+  AND #%00000001 ; See if right is pressed
+  beq continue2  ; skip note
   lda player_x
-  cmp #$0f
-  beq change_direction_right
-  jmp skip_direction2
+  cmp #$e9
+  beq continue2
+  inc player_x ; else move right
+  inc player_x
 
-  change_direction_right:
-    lda #$01
-    sta player_direction
+  ;; Move player ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; move_player:
+;   lda player_direction
 
-  skip_direction2:
-    jmp continue
+;   ; if set to 2 move right
+;   cmp #$02
+;   beq move_right
 
-continue:
+;   ; if set to 1 move left
+;   cmp $01
+;   beq move_left
+
+;   ; else skip movement
+;   jmp continue
+
+; move_right:
+;   inc player_x
+
+;   ; change direction if at edge
+;   lda player_x
+;   cmp #$e9
+;   beq change_direction_left
+;   jmp skip_direction
+
+;   change_direction_left:
+;     lda #$00
+;     sta player_direction
+
+;   skip_direction:
+;     jmp continue
+
+; move_left:
+;   dec player_x
+
+;   ; change direction at edge
+;   lda player_x
+;   cmp #$0f
+;   beq change_direction_right
+;   jmp skip_direction2
+
+;   change_direction_right:
+;     lda #$01
+;     sta player_direction
+
+
+continue2:
   ; infinite loop
   JMP loop
 
