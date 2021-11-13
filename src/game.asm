@@ -32,6 +32,8 @@
   player_direction: .res 1
   background: .res 2
   frames_passed: .res 1
+  scroll_x: .res 1
+  scroll_y: .res 1
 
 
 .segment "STARTUP"
@@ -54,6 +56,8 @@ reset:
   sta player_y
   lda #$00
   sta player_direction
+  sta scroll_x
+  sta scroll_y
 
 ; wait for vblank
 :
@@ -181,9 +185,11 @@ nmi:
 	  sta OAMADDR
 	  lda #$02
 	  sta OAMDMA
-	  lda #$00
+    
+    ; Scrol;
+	  lda scroll_x
 	  sta $2005
-    lda #$00
+    lda scroll_y
 	  sta $2005
     inc frames_passed
 	  rti
