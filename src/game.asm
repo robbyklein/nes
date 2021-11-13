@@ -54,8 +54,9 @@ reset:
   sta player_x
   lda #$cf
   sta player_y
-  lda #$00
+  lda #$01
   sta player_direction
+  lda #$00
   sta scroll_x
   sta scroll_y
 
@@ -96,18 +97,6 @@ reset:
     inx
     cpx #$10
     bne :-
-
-
-  ;;;;;;;;;;;;;;;;;;;;;;;
-  ; Load Sprites
-  ;;;;;;;;;;;;;;;;;;;;;;;
-;   ldx #$00
-; load_spirtes:
-;   lda sprites, x
-;   sta $0200, x
-;   inx
-;   cpx #$04
-;   bne load_spirtes
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -162,7 +151,7 @@ loop:
   cmp frames_passed
   beq :-
 
-  ; Move player
+  ; Render player
   lda player_y
   sta $0200 ; Y-coord of first sprite
   lda #$06
@@ -171,8 +160,47 @@ loop:
   sta $0202 ; attributes of first sprite
   lda player_x
   sta $0203 ; X-coord of first sprite
+
+  ; Move player
+
+  lda player_direction
+  cmp #$01
+  beq move_right
+  jmp move_left
+
+move_right:
   inc player_x
 
+  ; change direction if at edge
+  lda player_x
+  cmp #$e9
+  beq change_direction_left
+  jmp skip_direction
+
+  change_direction_left:
+    lda #$00
+    sta player_direction
+
+  skip_direction:
+    jmp continue
+
+move_left:
+  dec player_x
+
+  ; change direction at edge
+  lda player_x
+  cmp #$0f
+  beq change_direction_right
+  jmp skip_direction2
+
+  change_direction_right:
+    lda #$01
+    sta player_direction
+
+  skip_direction2:
+    jmp continue
+
+continue:
   ; infinite loop
   JMP loop
 
@@ -194,6 +222,11 @@ nmi:
     inc frames_passed
 	  rti
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Sprite Data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+player_sprite:
+  .byte player_x, $06, $00, $80
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Externals
