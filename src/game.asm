@@ -1,4 +1,13 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Includes
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 .include "constants.inc"
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Rom Header
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 .segment "HEADER"
   .byte "NES"
@@ -12,6 +21,11 @@
   .byte $00
   .byte $00, $00, $00, $00, $00
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Variables
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 .segment "ZEROPAGE"
   player_x: .res 1
   player_y: .res 1
@@ -19,57 +33,65 @@
   background: .res 2
   frames_passed: .res 1
 
+
 .segment "STARTUP"
-Reset:
-  SEI
-  CLD
-  LDX #$00
-  STX PPUCTRL
-  STX PPUMASK
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Reset
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+reset:
+  sei
+  cld
+  ldx #$00
+  stx PPUCTRL
+  stx PPUMASK
   
   ; initialize zero-page values
-  LDA #$80
-  STA player_x
-  LDA #$cf
-  STA player_y
-  LDA #$00
-  STA player_direction
+  lda #$80
+  sta player_x
+  lda #$cf
+  sta player_y
+  lda #$00
+  sta player_direction
 
+; wait for vblank
 :
-  BIT $2002
-  BPL :-
+  bit PPUSTATUS
+  bpl :-
 
 
-  ; Load sprite palette
-  LDX PPUSTATUS
-  LDX #$3f
-  STX PPUADDR
-  LDX #$10
-  STX PPUADDR
-  
-  LDX #$00
-LoadPalettes2:
-    LDA colors2, X
-    STA PPUDATA
-    INX
-    CPX #$10
-    BNE LoadPalettes2
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Load palettes
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+  ; Sprites
+  ldx PPUSTATUS
+  ldx #$3f
+  stx PPUADDR
+  ldx #$10
+  stx PPUADDR
+  ldx #$00
+:
+    lda colors2, X
+    sta PPUDATA
+    inx
+    cpx #$10
+    bne :-
 
-  ; Load background palette
-  LDX PPUSTATUS
-  LDX #$3f
-  STX PPUADDR
-  LDX #$00
-  STX PPUADDR
-  
-  LDX #$00
-LoadPalettes:
-    LDA colors, X
-    STA PPUDATA
-    INX
-    CPX #$10
-    BNE LoadPalettes
+  ; Backgrounds
+  ldx PPUSTATUS
+  ldx #$3f
+  stx PPUADDR
+  ldx #$00
+  stx PPUADDR
+  ldx #$00
+:
+    lda colors, X
+    sta PPUDATA
+    inx
+    cpx #$10
+    bne :-
 
 
   ;;;;;;;;;;;;;;;;;;;;;;;
@@ -84,79 +106,92 @@ LoadPalettes:
 ;   bne load_spirtes
 
 
-  ;;;;;;;;;;;;;;;;;;;;;;;
-  ; Load Background
-  ;;;;;;;;;;;;;;;;;;;;;;;
-  ldx #$20
-  ldy #$00 ; position
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Load background
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+  ldx #$20 ; offset
+  ldy #$00 ; position
   lda #<background_data
   sta background
   lda #>background_data
   sta background+1
 
-; Background
-page:
-  tiles:
-    LDA PPUSTATUS
-    STX PPUADDR
-    STY PPUADDR
+:
+  render_background_tiles:
+    ; render each position
+    lda PPUSTATUS
+    stx PPUADDR
+    sty PPUADDR
     lda (background),y
-    STa PPUDATA
+    sta PPUDATA
     iny
-    bne tiles
-
+    bne render_background_tiles
+  ; Go to next page
   inc background+1
   inx
   cpx #$24
-  bne page
+  bne :-
+
+; Wait for vblack 
+:
+  bit PPUSTATUS
+  bpl :-
+
+  ; turn on NMIs, sprites use first pattern table
+  lda #%10000000  
+  sta PPUCTRL
+
+  ; turn on screen
+  lda #%00011110  
+  sta PPUMASK
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Main game loop
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+loop:
+  lda frames_passed
   
-vblankwait:       ; wait for another vblank before continuing
-  BIT PPUSTATUS
-  BPL vblankwait
+; each frame
+:
+  cmp frames_passed
+  beq :-
 
-  LDA #%10000000  ; turn on NMIs, sprites use first pattern table
-  STA PPUCTRL
-  LDA #%00011110  ; turn on screen
-  STA PPUMASK
+  ; Move player
+  lda player_y
+  sta $0200 ; Y-coord of first sprite
+  lda #$06
+  sta $0201 ; tile number of first sprite
+  lda #$00
+  sta $0202 ; attributes of first sprite
+  lda player_x
+  sta $0203 ; X-coord of first sprite
+  inc player_x
 
-
-Loop:
-    lda frames_passed
-
-    :
-      cmp frames_passed
-      beq :-
-
-      LDA player_y
-      STA $0200 ; Y-coord of first sprite
-      LDA #$06
-      STA $0201 ; tile number of first sprite
-      LDA #$00
-      STA $0202 ; attributes of first sprite
-      LDA player_x
-      STA $0203 ; X-coord of first sprite
-
-      inc player_x
+  ; infinite loop
+  JMP loop
 
 
-
-    JMP Loop
-
-
-NMI:
-	  LDA #$00
-	  STA OAMADDR
-	  LDA #$02
-	  STA OAMDMA
-	  LDA #$00
-	  STA $2005
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; NMI
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+nmi:
+	  lda #$00
+	  sta OAMADDR
+	  lda #$02
+	  sta OAMDMA
+	  lda #$00
+	  sta $2005
     lda #$00
-	  STA $2005
-    ;inc $01
+	  sta $2005
     inc frames_passed
+	  rti
 
-	  RTI
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Externals
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 colors:
   .incbin "palettes.pal"
@@ -164,14 +199,22 @@ colors:
 colors2:
   .incbin "sprite-palettes.pal"
 
-sprites:
-  .byte $cf, $06, $00, $80
 background_data:
   .incbin "bg.nam"
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Vectors
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 .segment "VECTORS"
-    .word NMI
-    .word Reset
-    ; 
+    .word nmi
+    .word reset
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Chars
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 .segment "CHARS"
     .incbin "tiles.chr"
