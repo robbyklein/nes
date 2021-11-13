@@ -77,7 +77,7 @@ reset:
   stx PPUADDR
   ldx #$00
 :
-    lda colors2, X
+    lda sprite_palettes, X
     sta PPUDATA
     inx
     cpx #$10
@@ -91,7 +91,7 @@ reset:
   stx PPUADDR
   ldx #$00
 :
-    lda colors, X
+    lda background_palettes, X
     sta PPUDATA
     inx
     cpx #$10
@@ -199,10 +199,10 @@ nmi:
 ;; Externals
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-colors:
+background_palettes:
   .incbin "palettes.pal"
 
-colors2:
+sprite_palettes:
   .incbin "sprite-palettes.pal"
 
 background_data:
